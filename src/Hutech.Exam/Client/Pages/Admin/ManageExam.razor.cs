@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Net.Http.Json;
 using Hutech.Exam.Client.Authentication;
 using System.Net.Http.Headers;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Hutech.Exam.Client.Pages.Admin
 {
@@ -33,7 +34,7 @@ namespace Hutech.Exam.Client.Pages.Admin
         private bool showMessageBox { get; set; }
         private CaThi? showCaThiMessageBox { get; set; }
         private User? user { get; set; }
-
+        private HubConnection? hubConnection { get; set; }
         protected override async Task OnInitializedAsync()
         {
             //xác thực người dùng
@@ -80,10 +81,14 @@ namespace Hutech.Exam.Client.Pages.Admin
         }
         private async Task getAllCaThi()
         {
+            HttpResponseMessage? response = null;
             if (httpClient != null)
-                caThis = await httpClient.GetFromJsonAsync<List<CaThi>>("api/Admin/GetAllCaThi");
-            if (caThis != null && myData != null && displayCaThis != null)
-                displayCaThis = caThis.ToList();
+                response = await httpClient.GetAsync("api/Admin/GetAllCaThi");
+            if (response != null && response.IsSuccessStatusCode )
+            {
+                var resultString = await response.Content.ReadAsStringAsync();
+                displayCaThis = caThis = JsonSerializer.Deserialize<List<CaThi>>(resultString, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
+            }
         }
 
         private void onChangeDate(ChangeEventArgs e)
@@ -155,6 +160,7 @@ namespace Hutech.Exam.Client.Pages.Admin
             showCaThiMessageBox = new CaThi();
             user = new User();
             await getAllCaThi();
+            await createHubConnection();
         }
         private void onClickShowMessageBox(CaThi caThi)
         {
@@ -175,43 +181,115 @@ namespace Hutech.Exam.Client.Pages.Admin
         {
             HttpResponseMessage? response = null;
             if (httpClient != null && showCaThiMessageBox != null)
-                response = await httpClient.PostAsync($"api/Admin/UpdateTinhTrangCaThi?ma_ca_thi={showCaThiMessageBox.MaCaThi}&isActived={isActived}", null);
-            if (response != null && response.IsSuccessStatusCode)
-            {
-                var resultString = await response.Content.ReadAsStringAsync();
-                caThis = JsonSerializer.Deserialize<List<CaThi>>(resultString, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
-                if (caThis != null && myData != null && displayCaThis != null)
-                    displayCaThis = caThis.ToList();
-            }
+                response = await httpClient.GetAsync($"api/Admin/UpdateTinhTrangCaThi?ma_ca_thi={showCaThiMessageBox.MaCaThi}&isActived={isActived}");
+        }
+        private async Task HuyKichHoatCaThi()
+        {
+            HttpResponseMessage? response = null;
+            if (httpClient != null && showCaThiMessageBox != null)
+                response = await httpClient.GetAsync($"api/Admin/HuyKichHoatCaThi?ma_ca_thi={showCaThiMessageBox.MaCaThi}");
+        }
+        private async Task KetThucCaThi()
+        {
+            HttpResponseMessage? response = null;
+            if (httpClient != null && showCaThiMessageBox != null)
+                response = await httpClient.GetAsync($"api/Admin/KetThucCaThi?ma_ca_thi={showCaThiMessageBox.MaCaThi}");
         }
         private async Task onClickKichHoatCaThi()
         {
-            await UpdateTinhTrangCaThi(true);
+            bool result = (js != null) && await js.InvokeAsync<bool>("confirm", "Bạn có muốn kích hoạt ca thi ?");
+            if (result && showCaThiMessageBox != null)
+            {
+                await UpdateTinhTrangCaThi(true);
+                await reLoadingComponent(showCaThiMessageBox.MaCaThi);
+            }
             showMessageBox = false;
-            StateHasChanged();
         }
         private async Task onClickHuyKichHoatCaThi()
         {
-            await UpdateTinhTrangCaThi(false);
+            // chỉ hủy kích hoạt ca thi khi mà không còn thí sinh nào đang thi
+
+            bool result = (js != null) && await js.InvokeAsync<bool>("confirm", "Bạn có chắc chắn muốn hủy kích hoạt ca thi. Hệ thống sẽ hủy toàn bộ những ghi nhận mà tất cả sinh viên đã làm trong ca thi này. " +
+                "Nếu bạn chỉ muốn dừng tạm thời ca thi, hãy chọn \"Dừng ca thi\".");
+            if (result && showCaThiMessageBox != null)
+            {
+                js?.InvokeVoidAsync("alert", "Hệ thống sẽ mất ít thời gian để xóa toàn bộ dữ liệu");
+                await HuyKichHoatCaThi();
+                await reLoadingComponent(showCaThiMessageBox.MaCaThi);
+            }
             showMessageBox = false;
-            StateHasChanged();
         }
         private async Task onClickKetThucCaThi()
         {
             bool result = (js != null) && await js.InvokeAsync<bool>("confirm", "Bạn có chắc chắn muốn kết thúc ca thi. Việc này sẽ không thể kích hoạt lại ca thi này nữa");
-            if (result && httpClient != null && showCaThiMessageBox != null)
+            if (result && showCaThiMessageBox != null)
             {
-                await httpClient.PostAsync($"api/Admin/KetThucCaThi?ma_ca_thi={showCaThiMessageBox.MaCaThi}", null);
-                showCaThiMessageBox.KetThuc = true;
-                showCaThiMessageBox.ThoiDiemKetThuc = DateTime.Now;
+                await KetThucCaThi();
+                await reLoadingComponent(showCaThiMessageBox.MaCaThi);
             }
             showMessageBox = false;
-            StateHasChanged();
+        }
+        private async Task onClickDungCaThi()
+        {
+            bool result = (js != null) && await js.InvokeAsync<bool>("confirm", "Bạn có chắc chắn muốn dừng ca thi. Việc này sẽ sẽ khiến toàn bộ sinh viên đang làm bài bị out ra tạm thời cho đến khi được kích hoạt trở lại");
+            if (result && httpClient != null && showCaThiMessageBox != null)
+            {
+                await UpdateTinhTrangCaThi(false);
+                await reLoadingComponent(showCaThiMessageBox.MaCaThi);
+            }
+            showMessageBox = false;
         }
         private void onClickThoatMessageBox()
         {
             showMessageBox = false;
             StateHasChanged();
+        }
+        private async Task createHubConnection()
+        {
+            if (navManager != null)
+            {
+                hubConnection = new HubConnectionBuilder()
+                    .WithUrl(navManager.ToAbsoluteUri("/ChiTietCaThiHub"))
+                    .Build();
+
+                hubConnection.On("ReceiveMessage", () =>
+                {
+                    callLoadData();
+                    StateHasChanged();
+                });
+                await hubConnection.StartAsync();
+                await getAllCaThi();
+            }
+        }
+
+        private void callLoadData()
+        {
+            Task.Run(async () =>
+            {
+                await getAllCaThi();
+                StateHasChanged();
+            });
+        }
+        private async Task reLoadingComponent(int ma_ca_thi)
+        {
+            if (isConnectHub())
+            {
+                await sendMessage();
+                await SendMessageStatusCaThi(ma_ca_thi);
+            }
+            StateHasChanged();
+        }
+        private bool isConnectHub() => hubConnection?.State == HubConnectionState.Connected;
+
+        private async Task sendMessage()
+        {
+            if (hubConnection != null)
+                await hubConnection.SendAsync("SendMessage");
+        }
+        private async Task SendMessageStatusCaThi(int ma_ca_thi)
+        {
+            if (hubConnection != null)
+                await hubConnection.SendAsync("SendMessageStatusCaThi", ma_ca_thi);
         }
     }
 }

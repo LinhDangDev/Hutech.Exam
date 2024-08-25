@@ -15,6 +15,7 @@ namespace Hutech.Exam.Shared.Models
         public string? NoiDungCauHoi { get; set; }
         public int KieuNoiDungCauHoi { get; set; }
         public Dictionary<int, string?>? CauTraLois { get; set; }
+        public string? GhiChu { get; set;}
 
     }
 }

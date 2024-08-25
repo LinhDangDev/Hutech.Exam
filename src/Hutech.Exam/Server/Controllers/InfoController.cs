@@ -3,6 +3,7 @@ using Hutech.Exam.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using NuGet.DependencyResolver;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -13,7 +14,6 @@ namespace Hutech.Exam.Server.Controllers
     [Authorize]
     public class InfoController : ControllerBase
     {
-        private const int SO_PHUT_LECH_CA_THI = 2880; // thí sinh nhận được ca thi chênh lệch 30 phút
         private readonly SinhVienService _sinhVienService;
         private readonly ChiTietCaThiService _chiTietCaThiService;
         private readonly CaThiService _caThiService;
@@ -33,47 +33,32 @@ namespace Hutech.Exam.Server.Controllers
             _dotThiService = dotThiService;
         }
         [HttpGet("GetThongTinChiTietCaThi")]
-        // lấy chi tiết các thông tin của 1 sinh viên thi vào 1 ca giờ cụ thể (đề thi hoán vị)
-        public ActionResult<ChiTietCaThi>? GetThongTinChiTietCaThi([FromQuery] long ma_sinh_vien)
+        public ActionResult<List<ChiTietCaThi>> GetThongTinChiTietCaThi([FromQuery] long ma_sinh_vien)
         {
-            CaThi? caThi = getThongTinCaThi(ma_sinh_vien);
-            if(caThi != null)
+            List<ChiTietCaThi> result = _chiTietCaThiService.SelectBy_MaSinhVienThi(ma_sinh_vien, DateTime.Now);
+            foreach (var item in result)
             {
-                ChiTietCaThi chiTietCaThi = _chiTietCaThiService.SelectBy_MaCaThi_MaSinhVien(caThi.MaCaThi, ma_sinh_vien);
-                chiTietCaThi.MaSinhVienNavigation = getThongTinSV(ma_sinh_vien);
-                chiTietCaThi.MaCaThiNavigation = getThongTinCaThi(ma_sinh_vien);
-                return chiTietCaThi;
+                item.MaCaThiNavigation = (item.MaCaThi != null) ? getThongTinCaThi((int)item.MaCaThi) : null;
+                item.MaSinhVienNavigation = getThongTinSV(ma_sinh_vien);
             }
-            ChiTietCaThi newChiTietCaThi = new ChiTietCaThi();
-            newChiTietCaThi.MaSinhVienNavigation = getThongTinSV(ma_sinh_vien);
-            return newChiTietCaThi;
+            //TH thí sinh không có ca thi
+            if(result.Count == 0)
+            {
+                ChiTietCaThi newChiTietCaThi = new ChiTietCaThi();
+                newChiTietCaThi.MaSinhVienNavigation = getThongTinSV(ma_sinh_vien);
+                result.Add(newChiTietCaThi);
+            }
+            return result;
         }
         private SinhVien? getThongTinSV(long ma_sinh_vien)
         {
             return _sinhVienService.SelectOne(ma_sinh_vien);
         }
-        private CaThi? getThongTinCaThi(long ma_sinh_vien)
+        private CaThi getThongTinCaThi(int ma_ca_thi)
         {
-            // lấy 1 list danh sách ca thi của 1 sinh viên
-            List<ChiTietCaThi> chiTietCaThis = _chiTietCaThiService.SelectBy_ma_sinh_vien(ma_sinh_vien);
-            List<CaThi> caThis = new List<CaThi>();
-            foreach(var chiTietCaThi in chiTietCaThis)
-            {
-                CaThi? caThi = (chiTietCaThi.MaCaThi != null) ? _caThiService.SelectOne((int)chiTietCaThi.MaCaThi) : null;
-                if (caThi != null && !caThis.Contains(caThi))
-                {
-                    caThis.Add(caThi);
-                }
-            }
-            // chỉ lấy ra duy nhất cho 1 ca thi gần đến thời gian thi
-            DateTime currentTime = DateTime.Now;
-            int chenh_lech_phut = SO_PHUT_LECH_CA_THI; // có thể thay đổi tùy theo nhu cầu
-            DateTime gio_tren = currentTime.AddMinutes(chenh_lech_phut);
-            DateTime gio_duoi = currentTime.AddMinutes(-chenh_lech_phut);
-            CaThi? result = caThis.FirstOrDefault(p => p.ThoiGianBatDau >= gio_duoi && p.ThoiGianBatDau <= gio_tren);
-            if(result != null)
-                result.MaChiTietDotThiNavigation = getThongTinChiTietDotThi(result.MaChiTietDotThi);
-            return result ?? null;
+            CaThi caThi = _caThiService.SelectOne(ma_ca_thi);
+            caThi.MaChiTietDotThiNavigation = getThongTinChiTietDotThi(caThi.MaChiTietDotThi);
+            return caThi;
         }
         private ChiTietDotThi getThongTinChiTietDotThi(int ma_chi_tiet_dot_thi)
         {

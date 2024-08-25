@@ -60,6 +60,7 @@ namespace Hutech.Exam.Server.BUS
         }
         public void insertChiTietBaiThis_SelectByChiTietDeThiHV(List<CustomDeThi>? customDeThis, int ma_chi_tiet_ca_thi, long ma_de_hoan_vi)
         {
+            List<ChiTietBaiThi> result = new List<ChiTietBaiThi>();
             int stt = 0;
             if (customDeThis == null)
                 return;
@@ -74,16 +75,40 @@ namespace Hutech.Exam.Server.BUS
             {
                 if(item.CauTraLoi != null && item.KetQua != null)
                 {
-                    this.Update(item.MaChiTietBaiThi, (int)item.CauTraLoi, DateTime.Now, (bool)item.KetQua);
+                    long ma_chi_tiet_bai_thi = this.SelectOne_v2(item.MaChiTietCaThi, item.MaDeHv, item.MaNhom, item.MaCauHoi).MaChiTietBaiThi;
+                    this.Update(ma_chi_tiet_bai_thi, (int)item.CauTraLoi, DateTime.Now, (bool)item.KetQua);
                 }
+            }
+        }
+        public void insertChiTietBaiThis(List<ChiTietBaiThi> chiTietBaiThis)
+        {
+            foreach(var item in chiTietBaiThis)
+            {
+                this.Insert(item.MaChiTietCaThi, item.MaDeHv, item.MaNhom, item.MaCauHoi, DateTime.Now, item.ThuTu);
             }
         }
         public void Delete(long ma_chi_tiet_bai_thi)
         {
-            if (!_chiTietBaiThiRepository.Delete(ma_chi_tiet_bai_thi))
+            try
             {
-                throw new Exception("Can not update ChiTietBaiThi");
+                _chiTietBaiThiRepository.Delete(ma_chi_tiet_bai_thi);
             }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+        }
+        public ChiTietBaiThi SelectOne_v2(int ma_chi_tiet_ca_thi, long ma_de_hv, int ma_nhom, int ma_cau_hoi)
+        {
+            ChiTietBaiThi chiTietBaiThi = new ChiTietBaiThi();
+            using (IDataReader dataReader = _chiTietBaiThiRepository.SelectOne_v2(ma_chi_tiet_ca_thi, ma_de_hv, ma_nhom, ma_cau_hoi))
+            {
+                if (dataReader.Read())
+                {
+                    chiTietBaiThi = getProperty(dataReader);
+                }
+            }
+            return chiTietBaiThi;
         }
     }
 }

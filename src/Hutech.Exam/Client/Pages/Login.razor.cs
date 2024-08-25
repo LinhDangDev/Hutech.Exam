@@ -12,6 +12,7 @@ using System.Text;
 using System.Xml.Linq;
 using System.Net.Http.Headers;
 using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
+using Microsoft.AspNetCore.SignalR.Client;
 namespace Hutech.Exam.Client.Pages
 {
 
@@ -31,9 +32,11 @@ namespace Hutech.Exam.Client.Pages
         UserSession? userSession { get; set; }
         private string? ma_so_sinh_vien = "";
         private string? password = "";
+        private HubConnection? hubConnection { get; set; }
 
         protected override async Task OnInitializedAsync()
         {
+            Start();
             sv = new SinhVien();
             //nếu đã tồn tại người dùng đăng nhập trước đó, chuyển trang
             var customAuthStateProvider = (authenticationStateProvider != null) ? (CustomAuthenticationStateProvider)authenticationStateProvider : null;
@@ -68,6 +71,9 @@ namespace Hutech.Exam.Client.Pages
                     // Cập nhật trạng thái của UserSession lại, chuyển từ Anyousmous thành người có danh tính
                     await customAuthenticationStateProvider.UpdateAuthenticationState(userSession);
                     sv = userSession?.NavigateSinhVien;
+                    // Cập nhật cho quản trị viên biết sinh viên đã đăng nhập
+                    if (isConnectHub() && sv != null)
+                        await sendMessage(sv.MaSinhVien);
                     navManager.NavigateTo("/info", true);
                 }
                 else if((loginResponse.StatusCode == HttpStatusCode.Unauthorized || !loginResponse.IsSuccessStatusCode) && js != null)
@@ -84,6 +90,30 @@ namespace Hutech.Exam.Client.Pages
                 }
                 return;
             }
+        }
+        
+        private async void Start()
+        {
+            if (navManager != null)
+            {
+                hubConnection = new HubConnectionBuilder()
+                    .WithUrl(navManager.ToAbsoluteUri("/ChiTietCaThiHub"))
+                    .Build();
+
+                await hubConnection.StartAsync();
+            }
+        }
+        private bool isConnectHub() => hubConnection?.State == HubConnectionState.Connected;
+
+        private async Task sendMessage(long ma_sinh_vien)
+        {
+            if(hubConnection != null)
+                await hubConnection.SendAsync("SendMessageMSV", ma_sinh_vien);
+        }
+
+        public void Dispose()
+        {
+            hubConnection?.DisposeAsync();
         }
     }
 }

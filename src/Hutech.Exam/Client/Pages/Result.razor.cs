@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
 using Hutech.Exam.Client.Authentication;
 using System.Net.Http.Headers;
+using Blazor.Extensions.Canvas.Canvas2D;
+using Blazor.Extensions;
+using Microsoft.AspNetCore.SignalR.Client;
 namespace Hutech.Exam.Client.Pages;
 
 public partial class Result
@@ -21,14 +24,18 @@ public partial class Result
     NavigationManager? navManager { get; set; }
     [Inject]
     IJSRuntime? js { get; set; }
+    private Canvas2DContext? _context { get; set; }
+    protected BECanvasComponent? _canvasReference { get; set; }
     private SinhVien? sinhVien { get; set; }
     private CaThi? caThi { get; set; }
     private ChiTietCaThi? chiTietCaThi { get; set; }
     private List<CustomDeThi>? customDeThis { get; set; }
     private List<int>? listDapAn { get; set; }
-    private List<bool>? ketQuaDapAn { get; set; }
+    private List<int>? listDapAnThucTe { get; set; }
+    private List<bool?>? ketQuaDapAn { get; set; }
     private double diem { get; set; }
     private int so_cau_dung { get; set; }
+    private HubConnection? hubConnection { get; set; }
     private async Task checkPage()
     {
         if ((myData == null || myData.chiTietCaThi == null || myData.sinhVien == null) && js != null)
@@ -63,6 +70,15 @@ public partial class Result
         await base.OnInitializedAsync();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _context = await _canvasReference.CreateCanvas2DAsync();
+        await _context.SetFontAsync("35px Arial");
+        await _context.FillTextAsync(diem.ToString(), 5, 35);
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
     private async Task HandleUpdateKetThuc()
     {
         if(chiTietCaThi != null && httpClient != null && myData != null && customDeThis != null)
@@ -81,25 +97,17 @@ public partial class Result
         double diem_tung_cau = 0;
         if(customDeThis != null)
             diem_tung_cau = (10.0 / customDeThis.Count);
-        int length = 0;
-        if(myData != null && myData.listDapAnKhoanh != null)
-            length = myData.listDapAnKhoanh.Count;
-        if(myData != null && myData.listDapAnKhoanh != null && myData.listDapAnGoc != null && ketQuaDapAn != null)
+        if(ketQuaDapAn != null)
         {
-            foreach (var item in myData.listDapAnGoc)
+            foreach(var item in ketQuaDapAn)
             {
-                if (myData.listDapAnKhoanh.Contains(item))
+                if (item == true)
                 {
                     diem += diem_tung_cau;
                     so_cau_dung++;
-                    ketQuaDapAn.Add(true);
                 }
-                else
-                    ketQuaDapAn.Add(false);
             }
         }
-
-
         diem = quyDoiDiem(diem);
     }
     private double quyDoiDiem(double diem)
@@ -121,6 +129,8 @@ public partial class Result
         if (result)
         {
             await UpdateLogout();
+            if (isConnectHub() && sinhVien != null)
+                await sendMessage(sinhVien.MaSinhVien);
             var customAuthStateProvider = (authenticationStateProvider!=null) ? (CustomAuthenticationStateProvider)authenticationStateProvider : null;
             if(customAuthStateProvider != null)
                 await customAuthStateProvider.UpdateAuthenticationState(null);
@@ -142,12 +152,56 @@ public partial class Result
             listDapAn = myData.listDapAnGoc;
             customDeThis = myData.customDeThis;
         }
-        ketQuaDapAn = new List<bool>();
+        ketQuaDapAn = new List<bool?>();
+    }
+    private async Task getListDungSai()
+    {
+        HttpResponseMessage? response = null;
+        if (httpClient != null && chiTietCaThi != null)
+            response = await httpClient.GetAsync($"api/Result/GetListDungSai?ma_chi_tiet_ca_thi={chiTietCaThi.MaChiTietCaThi}&tong_so_cau={customDeThis?.Count}");
+        if (response != null && response.IsSuccessStatusCode && myData != null)
+        {
+            var resultString = await response.Content.ReadAsStringAsync();
+            ketQuaDapAn =  JsonSerializer.Deserialize<List<bool?>>(resultString, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
+        }
     }
 
     private async Task Start()
     {
+        listDapAnThucTe = new List<int>();
+        if (navManager != null)
+        {
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(navManager.ToAbsoluteUri("/ChiTietCaThiHub"))
+            .Build();
+            hubConnection.On<long>("ReceiveMessageResetLogin", (ma_so_sv) =>
+            {
+                if (sinhVien != null && ma_so_sv == sinhVien.MaSinhVien)
+                    resetLogin();
+            });
+            await hubConnection.StartAsync();
+        }
+        await getListDungSai();
         tinhDiemSo();
         await HandleUpdateKetThuc();
+    }
+
+    private bool isConnectHub() => hubConnection?.State == HubConnectionState.Connected;
+    private async Task sendMessage(long ma_sinh_vien)
+    {
+        if (hubConnection != null)
+            await hubConnection.SendAsync("SendMessageMSV", ma_sinh_vien);
+    }
+    private void resetLogin()
+    {
+        Task.Run(async () =>
+        {
+            if (authenticationStateProvider != null)
+            {
+                var customAuthStateProvider = (CustomAuthenticationStateProvider)authenticationStateProvider;
+                await customAuthStateProvider.UpdateAuthenticationState(null);
+                navManager?.NavigateTo("/", true);
+            }
+        });
     }
 }

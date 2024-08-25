@@ -1,5 +1,6 @@
 ﻿using Hutech.Exam.Server.DAL.Repositories;
 using Hutech.Exam.Shared.Models;
+using System;
 using System.Data;
 
 namespace Hutech.Exam.Server.BUS
@@ -20,10 +21,10 @@ namespace Hutech.Exam.Server.BUS
             audioListened.ListenedCount = dataReader.GetInt32(3);
             return audioListened;
         }
-        public int SelectOne(int ma_chi_tiet_ca_thi, string filename)
+        public int SelectOne(int ma_chi_tiet_ca_thi, string fileName)
         {
             int listenedCount = 0;
-            using (IDataReader dataReader = _audioListenedRepository.SelectOne(ma_chi_tiet_ca_thi, filename))
+            using (IDataReader dataReader = _audioListenedRepository.SelectOne(ma_chi_tiet_ca_thi, fileName))
             {
                 if (dataReader.Read())
                 {
@@ -31,6 +32,17 @@ namespace Hutech.Exam.Server.BUS
                 }
             }
             return listenedCount;
+        }
+        public void Save(int ma_chi_tiet_ca_thi, string fileName)
+        {
+            try
+            {
+                _audioListenedRepository.Save(ma_chi_tiet_ca_thi, fileName);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
         }
     }
 }

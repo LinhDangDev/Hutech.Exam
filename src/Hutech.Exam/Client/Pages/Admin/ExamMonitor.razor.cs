@@ -4,6 +4,7 @@ using Hutech.Exam.Client.Pages.Admin.MessageBox;
 using Hutech.Exam.Shared.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.JSInterop;
 using System.Net.Http.Headers;
 using System.Text;
@@ -33,6 +34,7 @@ namespace Hutech.Exam.Client.Pages.Admin
         private int? MB_thoi_gian_cong { get; set; }
         private MBCongGio? MBCongGio { get; set; }
         private int ma_ca_thi { get; set; }
+        private HubConnection? hubConnection { get; set; }
 
         protected async override Task OnInitializedAsync()
         {
@@ -62,7 +64,7 @@ namespace Hutech.Exam.Client.Pages.Admin
         {
             HttpResponseMessage? response = null;
             if (httpClient != null)
-                response = await httpClient.PostAsync($"api/Admin/GetThongTinCTCaThiTheoMaCaThi?ma_ca_thi={ma_ca_thi}", null);
+                response = await httpClient.GetAsync($"api/Admin/GetThongTinCTCaThiTheoMaCaThi?ma_ca_thi={ma_ca_thi}");
             if (response != null && response.IsSuccessStatusCode)
             {
                 var resultString = await response.Content.ReadAsStringAsync();
@@ -76,6 +78,8 @@ namespace Hutech.Exam.Client.Pages.Admin
             var jsonString = JsonSerializer.Serialize(chiTietCaThi);
             if (httpClient != null)
                 await httpClient.PostAsync($"api/Admin/CongGioSinhVien?chiTietCaThi={chiTietCaThi}", new StringContent(jsonString, Encoding.UTF8, "application/json"));
+            if (isConnectHub())
+                await sendMessage(ma_ca_thi);
         }
 
         private async Task onClickCongGioThem(ChiTietCaThi chiTietCaThi)
@@ -85,7 +89,6 @@ namespace Hutech.Exam.Client.Pages.Admin
             {
                 isShowMessageBox = true;
                 displayChiTietCaThi = chiTietCaThi;
-                StateHasChanged();
             }
         }
 
@@ -106,6 +109,20 @@ namespace Hutech.Exam.Client.Pages.Admin
             isShowMessageBox = false;
             StateHasChanged();
         }
+        
+        private async void onClickResetLogin(SinhVien sinhVien)
+        {
+            bool result = (js != null) && await js.InvokeAsync<bool>("confirm", $"Thí sinh đăng nhập lần cuối vào lúc {sinhVien.LastLoggedIn}. Hãy cân nhắc thời gian trên và chắc chắn rằng sinh viên không gian lận");
+            if (result && httpClient != null)
+            {
+                await httpClient.PostAsync($"api/Admin/UpdateLogoutSinhVien?ma_sinh_vien={sinhVien.MaSinhVien}", null);
+                if (isConnectHub())
+                {
+                    await sendMessage(ma_ca_thi);
+                    await sendMessageResetLogin(sinhVien.MaSinhVien);
+                }
+            }
+        }
 
         private async Task Start()
         {
@@ -117,7 +134,60 @@ namespace Hutech.Exam.Client.Pages.Admin
             displayChiTietCaThi = new ChiTietCaThi();
             if (myData != null && myData.caThi != null)
                 ma_ca_thi = myData.caThi.MaCaThi;
-            await getThongTinChiTietCaThi(ma_ca_thi);
+            await createHubConnection();
+        }
+        private async Task createHubConnection()
+        {
+            if (navManager != null && chiTietCaThis != null)
+            {
+                hubConnection = new HubConnectionBuilder()
+                    .WithUrl(navManager.ToAbsoluteUri("/ChiTietCaThiHub"))
+                    .Build();
+
+                hubConnection.On<int>("ReceiveMessageMCT", (ma_ca_thi_message) =>
+                {
+                    if (ma_ca_thi_message == ma_ca_thi)
+                    {
+                        callLoadData();
+                        StateHasChanged();
+                    }
+                });
+                hubConnection.On<long>("ReceiveMessageMSV", (ma_sinh_vien) =>
+                {
+                    if (chiTietCaThis.Exists(p => p.MaSinhVien == ma_sinh_vien))
+                    {
+                        callLoadData();
+                        StateHasChanged();
+                    }
+                });
+                await hubConnection.StartAsync();
+                await getThongTinChiTietCaThi(ma_ca_thi);
+            }
+        }
+
+        private void callLoadData()
+        {
+            Task.Run(async () =>
+            {
+                await getThongTinChiTietCaThi(ma_ca_thi);
+                StateHasChanged();
+            });
+        }
+        private bool isConnectHub() => hubConnection?.State == HubConnectionState.Connected;
+
+        private async Task sendMessage(int ma_ca_thi)
+        {
+            if (hubConnection != null)
+                await hubConnection.SendAsync("SendMessageMCT", ma_ca_thi);
+        }
+        private async Task sendMessageResetLogin(long ma_sinh_vien)
+        {
+            if (hubConnection != null)
+                await hubConnection.SendAsync("SendMessageResetLogin", ma_sinh_vien);
+        }
+        public void Dispose()
+        {
+            hubConnection?.DisposeAsync();
         }
     }
 }

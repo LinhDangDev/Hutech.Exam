@@ -10,7 +10,7 @@ namespace Hutech.Exam.Server.DAL.DataReader
 {
     public class DatabaseReader
     {
-        public static readonly int THOI_GIAN_HUY_BO = 10; // (giây), là n giây connection pool tồn tại và sẽ được hủy bỏ sau n giây đó
+        public static readonly int THOI_GIAN_HUY_BO = 5; // (giây), là n giây connection pool tồn tại và sẽ được hủy bỏ sau n giây đó
         private string? _connectionString { get; set; }
         private IConfiguration? _configuration { get; set; }
         private List<SqlParameter> _params { get; set; }

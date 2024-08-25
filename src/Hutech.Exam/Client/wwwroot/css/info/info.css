@@ -200,7 +200,6 @@
 
 .radio-input {
     position: absolute;
-    margin-left: calc(var(--fraction-rem-height) * 0.3);
     margin-top: calc(var(--fraction-rem-height) * 0.15);
     font-family: "Segoe UI-Bold", Helvetica;
     font-weight: 700;
@@ -233,4 +232,8 @@
 body{
     margin: 0px;
     background-color: #d9d9d9d9;
+}
+
+.label_monthi{
+    margin-left: calc(var(--fraction-rem-height) * 0.5);
 }

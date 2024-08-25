@@ -37,11 +37,14 @@
                          class="logo_time" />
                     <h3>Thời Gian : @displayTime</h3>
                 </div>
-                <nav class="nav">
-                    <button @onclick="onClickNopBai" class="btn btn-nop-bai">
-                        Nộp Bài
-                    </button>
-                </nav>
+                @if (!is_pause)
+                {
+                    <nav class="nav">
+                        <button @onclick="onClickNopBai" class="btn btn-nop-bai">
+                            Nộp Bài
+                        </button>
+                    </nav>
+                }
             </div>
         </div>
     </header>
@@ -59,23 +62,12 @@
                             int thu_tu_ma_nhom = -1;
                             int thu_tu_ma_cau_hoi = -1;
                             string? ma_nhom_cha = "";
+                            int ma_audio = 0; // tạo các mã audio cho việc disable audio
                         }
-                        @if(customDeThis != null)
+                        @if(customDeThis != null && !is_pause)
                         {
                             @foreach (var item in customDeThis)
                             {
-                                // Hiển thị nội dụng câu hỏi nhóm cha (nếu có)
-                                if(item.NoiDungCauHoiNhomCha != null && item.NoiDungCauHoiNhomCha != ma_nhom_cha)
-                                {
-                                    ma_nhom_cha = item.NoiDungCauHoiNhomCha;
-                                    <section id="question@(QuestionMask )" class="txt">
-                                        @if (item.NoiDungCauHoiNhomCha != null)
-                                        {
-                                            <p>@((MarkupString)item.NoiDungCauHoiNhomCha)</p>
-                                        }
-                                    </section>
-                                }
-
                                 // Hiển thị nội dung câu hỏi nhóm
                                 if (item.MaNhom != thu_tu_ma_nhom)
                                 {
@@ -83,8 +75,38 @@
                                     <section id="question@(QuestionMask )" class="txt">
                                         @if (item.NoiDungCauHoiNhom != null)
                                         {
+                                            // Hiển thị nội dụng câu hỏi nhóm cha (nếu có)
+                                            if(item.NoiDungCauHoiNhomCha != null && item.NoiDungCauHoiNhomCha != ma_nhom_cha)
+                                            {
+                                                ma_nhom_cha = item.NoiDungCauHoiNhomCha;
+                                                <p>@((MarkupString)item.NoiDungCauHoiNhomCha)</p>
+                                                <br/>
+                                            }
                                             int STT = QuestionMask;
-                                            <p>@((MarkupString)handleDienKhuyet(item.NoiDungCauHoiNhom, STT))</p>
+                                            // xử lí câu hỏi điền khuyết
+                                            if(item.NoiDungCauHoiNhom.Contains("(*)"))
+                                            {
+                                                <p>@((MarkupString)handleDienKhuyet(item.NoiDungCauHoiNhom, STT))</p>
+                                            }
+                                            // xử lí âm thanh
+                                            else if (item.NoiDungCauHoiNhom.Contains("<audio") && isDisableAudio != null && item.GhiChu != null)
+                                            {
+                                                string audio_source = handleAudioSource(item.NoiDungCauHoiNhom);
+                                                string text_before = handleBeforeAudio(item, item.NoiDungCauHoiNhom, ma_audio);
+                                                string id = $"audio{ma_audio}";
+                                                <p>@((MarkupString)(text_before))</p>
+                                                <span>
+                                                    <audio id=@id controls controlsList="nodownload" @onplay="async () => await onPlayAudio(item, ma_audio, audio_source, id)">
+                                                        <source src="@audio_source" />
+                                                    </audio>
+                                                    @((MarkupString)(item.GhiChu))
+                                                </span>
+                                                ma_audio++;
+                                            }
+                                            else
+                                            {
+                                                <p>@((MarkupString)(item.NoiDungCauHoiNhom))</p>
+                                            }
                                         }
                                     </section>
                                 }
@@ -171,7 +193,7 @@
                         <div class="choose_content">
                             <div class="choose-question">
                                 <div class="choose">
-                                    @if (customDeThis != null)
+                                    @if (customDeThis != null && !is_pause)
                                     {
                                         int tongSoCau = customDeThis.Count;
                                         for (int i = 1; i <= tongSoCau; i++)
@@ -200,8 +222,8 @@
         </div>
     </main>
     <!-- Trong file exam.cshtml -->
+    <!-- Script for the toast function and other functionalities -->
+    <script src="./js/main.js" type="text/javascript"></script>
+    <script src="./js/exam.js" type="text/javascript"></script>
 </body>
-<!-- Script for the toast function and other functionalities -->
-<script src="./js/main.js" type="text/javascript"></script>
-<script src="./js/exam.js" type="text/javascript"></script>
 </html>

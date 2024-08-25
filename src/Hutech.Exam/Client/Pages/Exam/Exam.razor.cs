@@ -8,6 +8,7 @@ using Hutech.Exam.Client.Authentication;
 using System.Net.Http.Headers;
 using System.Net;
 using Microsoft.JSInterop;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Hutech.Exam.Client.Pages.Exam
 {
@@ -26,17 +27,19 @@ namespace Hutech.Exam.Client.Pages.Exam
         IJSRuntime? js { get; set; }
         private SinhVien? sinhVien { get; set; }
         private CaThi? caThi { get; set; }
-        private ChiTietCaThi? chiTietCaThi { get; set; }
+        private static ChiTietCaThi? chiTietCaThi { get; set; }
         private List<CustomDeThi>? customDeThis { get; set; }
         private static List<ChiTietBaiThi>? chiTietBaiThis { get; set; }
+        private static List<ChiTietBaiThi>? dsBaiThi_Update { get; set; } // lưu ds các câu sv vừa mới trả lời về server
         private static List<int>? cau_da_chons { get; set; } // lưu vết các đáp án đã khoanh trước đó
-        private List<int>? cau_da_chons_tagA { get; set; }// lưu vết các đáp án đã khoanh trước đó cho tag Answer
+        private List<int>? cau_da_chons_tagA { get; set; }// lưu vết các đáp án đã khoanh trước đó cho tag Answer button
         private List<string>? alphabet { get; set; }
         public static List<int>? listDapAn { get; set; }// lưu vết các đáp án sinh viên chọn
-        public static List<int>? listDapAnThucTe { get; set; }
         private System.Timers.Timer? timer { get; set; }
         private string? displayTime { get; set; }
-        private static int maAudio { get; set; } // phân biệt từng audio để ktra số lần nghe từng audio đó
+        private HubConnection? hubConnection { get; set; } // cập nhật tình trạng đang thi, đã hoàn thành thi của thí sinh, ca thi
+        private bool is_pause { get; set; } // cập nhật trạng thái dừng ca thi của thí sinh
+        private List<bool>? isDisableAudio { get; set; }
         private async Task checkPage()
         {
             if ((myData == null || myData.chiTietCaThi == null || myData.sinhVien == null) && js != null)
@@ -80,6 +83,9 @@ namespace Hutech.Exam.Client.Pages.Exam
                 if (result)
                 {
                     await UpdateChiTietBaiThi();
+                    // Cập nhật cho quản trị viên biết sinh đã hoàn thành bài thi
+                    if (isConnectHub() && chiTietCaThi != null && chiTietCaThi.MaCaThi != null)
+                        await sendMessage((int)chiTietCaThi.MaCaThi);
                     if (myData != null)
                     {
                         myData.chiTietBaiThis = chiTietBaiThis;
@@ -89,9 +95,21 @@ namespace Hutech.Exam.Client.Pages.Exam
                 }
             }
         }
+        private async Task ketThucThoiGianLamBai()
+        {
+            await UpdateChiTietBaiThi();
+            // Cập nhật cho quản trị viên biết sinh đã hoàn thành bài thi
+            if (isConnectHub() && chiTietCaThi != null && chiTietCaThi.MaCaThi != null)
+                await sendMessage((int)chiTietCaThi.MaCaThi);
+            if (myData != null)
+            {
+                myData.chiTietBaiThis = chiTietBaiThis;
+                myData.listDapAnKhoanh = listDapAn;
+            }
+            navManager?.NavigateTo("/result");
+        }
         private void khoiTaoBanDau()
         {
-            maAudio = 0;
             chiTietBaiThis = new List<ChiTietBaiThi>();
             sinhVien = new SinhVien();
             if (myData != null)
@@ -101,20 +119,30 @@ namespace Hutech.Exam.Client.Pages.Exam
             listDapAn = new List<int>();
             cau_da_chons = new List<int>();
             cau_da_chons_tagA = new List<int>();
-            listDapAnThucTe = new List<int>();
+            dsBaiThi_Update = new List<ChiTietBaiThi>();
             customDeThis = new List<CustomDeThi>();
         }
         private async Task Start()
         {
-            if(myData != null && myData.chiTietCaThi != null)
+            is_pause = false;
+            await InitialConnectionHub();
+            if (myData != null && myData.chiTietCaThi != null)
             {
                 chiTietCaThi = myData.chiTietCaThi;
                 await getDeThi(chiTietCaThi.MaDeThi);
-                await getListDapAn(chiTietCaThi.MaDeThi);
                 await modifyNhomCauHoi();
             }
-            await InsertChiTietBaiThi();
-            ProcessTiepTucThi();
+            chiTietBaiThis = new List<ChiTietBaiThi>();
+            isDisableAudio = new List<bool>();
+            // Cập nhật cho quản trị viên biết sinh viên đang thi
+            if (isConnectHub() && chiTietCaThi != null && chiTietCaThi.MaCaThi != null)
+                await sendMessage((int)chiTietCaThi.MaCaThi);
+            // Nếu đã vào thi trước đó và treo máy tiếp tục thi thì chỉ lấy lại chi tiet bài thi, ko insert
+            if (myData != null && myData.chiTietCaThi != null && myData.chiTietCaThi.DaThi)
+            {
+                await InsertChiTietBaiThi_DaVaoThiTruocDo();
+                ProcessTiepTucThi();
+            }
         }
         private void Time()
         {
@@ -152,8 +180,7 @@ namespace Hutech.Exam.Client.Pages.Exam
                 else
                 {
                     timer.Stop(); // Dừng timer khi countdown kết thúc
-                    await onClickNopBai();
-                    navManager?.NavigateTo("/result");
+                    await ketThucThoiGianLamBai();
                 }
             };
         }
@@ -161,10 +188,9 @@ namespace Hutech.Exam.Client.Pages.Exam
         // Xử lí việc thí sinh bị out ra khi đang làm bài
         private void ProcessTiepTucThi()
         {
-            DateTime? thoi_gian = chiTietBaiThis?[0].NgayTao;
+            DateTime? thoi_gian = chiTietBaiThis?.Max(p => p.NgayCapNhat);
             thoi_gian = thoi_gian?.AddSeconds(GIAY_CAP_NHAT);
-            // check thời gian bắt đầu làm bài vì bài lưu lần đầu sau n phút, tức là nếu sinh viên làm chưa tới n phút thì chắc chắn dữ liệu chưa có
-            if(chiTietBaiThis != null && thoi_gian != null && thoi_gian < DateTime.Now)
+            if(chiTietBaiThis != null && thoi_gian != null)
             {
                 foreach(var item in chiTietBaiThis)
                 {
@@ -189,10 +215,10 @@ namespace Hutech.Exam.Client.Pages.Exam
         private double? thoiGianConLaiLooseData()
         {
             TimeSpan? result = null;
-            if(chiTietCaThi != null && chiTietCaThi.DaHoanThanh == false && chiTietCaThi.DaThi == true)
+            if(chiTietCaThi != null && chiTietCaThi.DaHoanThanh == false && chiTietCaThi.DaThi == true && chiTietBaiThis?.Count != 0)
             {
-                DateTime? thoi_gian_luu_lan_cuoi = chiTietBaiThis?[0].NgayCapNhat;
-                DateTime? thoi_gian_bat_dau_thi = chiTietBaiThis?[0].NgayTao;
+                DateTime? thoi_gian_luu_lan_cuoi = chiTietBaiThis?.Max(p => p.NgayCapNhat);
+                DateTime? thoi_gian_bat_dau_thi = chiTietBaiThis?.Min(p => p.NgayTao);
                 result = thoi_gian_luu_lan_cuoi - thoi_gian_bat_dau_thi;
             }
             return result?.TotalSeconds;
@@ -204,11 +230,11 @@ namespace Hutech.Exam.Client.Pages.Exam
         }
         public void Dispose()
         {
-            if(timer != null)
-            {
-                timer.Dispose();
-            }
+            timer?.Dispose();
+            hubConnection?.DisposeAsync();
         }
+        private void dungThoiGian() => timer?.Stop();
+        private void tiepTucThoiGian() => timer?.Start();
 
     }
 }

@@ -47,15 +47,20 @@
 
                 <hr class="space">
                 @{
-                    if (caThi != null && monHoc != null)
+                    if (chiTietCaThis != null && chiTietCaThis[0] != null && chiTietCaThis[0].MaCaThiNavigation != null)
                     {
                         <div class="thong-bao">
-                        <label class="radio">Sinh viên hiện tại đang có 1 ca thi. Vui lòng chọn ca thi</label>
-                        <br />
-                            <label>[@monHoc.TenMonHoc]: @caThi.TenCaThi</label>
-                            <input class="radio-input" type="radio" name="#" value="@selectoption_cathi" @onchange="RadioChanged" />
+                            <label class="radio">Sinh viên hiện tại đang có @chiTietCaThis.Count ca thi. Vui lòng chọn ca thi</label>
+                            <br />
+                            @foreach(var item in chiTietCaThis)
+                            {
+                                <input class="radio-input" type="radio" name="#" value="@selectoption_cathi" @onchange="RadioChanged" @onclick="() => onClickCaThi(item)" />
+                                monHoc = item.MaCaThiNavigation?.MaChiTietDotThiNavigation?.MaLopAoNavigation.MaMonHocNavigation;
+                                caThi = item.MaCaThiNavigation;
+                                <label class="label_monthi">@monHoc?.TenMonHoc - @caThi?.TenCaThi</label>
+                                <br/>
+                            }
                         </div>
-
                         <button class="button-start" @onclick="OnClickBatDauThi">Bắt đầu thi</button>
                     }
                 }

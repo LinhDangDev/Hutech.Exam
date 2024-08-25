@@ -38,5 +38,14 @@ namespace Hutech.Exam.Server.DAL.Repositories
             sql.SqlParams("@MaChiTietBaiThi", SqlDbType.BigInt, ma_chi_tiet_bai_thi);
             return sql.ExcuteNonQuery() != 0;
         }
+        public IDataReader SelectOne_v2(int ma_chi_tiet_ca_thi, long ma_de_hv, int ma_nhom, int ma_cau_hoi)
+        {
+            DatabaseReader sql = new DatabaseReader("chi_tiet_bai_thi_SelectOne_v2");
+            sql.SqlParams("@ma_chi_tiet_ca_thi", SqlDbType.Int, ma_chi_tiet_ca_thi);
+            sql.SqlParams("@MaDeHV", SqlDbType.BigInt, ma_de_hv);
+            sql.SqlParams("@MaNhom", SqlDbType.Int, ma_nhom);
+            sql.SqlParams("@MaCauHoi", SqlDbType.Int, ma_cau_hoi);
+            return sql.ExcuteReader();
+        }
     }
 }

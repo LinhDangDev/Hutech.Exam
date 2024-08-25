@@ -78,6 +78,18 @@ namespace Hutech.Exam.Server.BUS
             }
             return result;
         }
+        public List<ChiTietCaThi> SelectBy_MaSinhVienThi(long ma_sinh_vien, DateTime ngay_hien_tai)
+        {
+            List<ChiTietCaThi> result = new List<ChiTietCaThi>();
+            using (IDataReader dataReader = _chiTietCaThiRepository.SelectBy_MaSinhVienThi(ma_sinh_vien, ngay_hien_tai))
+            {
+                while (dataReader.Read())
+                {
+                    result.Add(getProperty(dataReader));
+                }
+            }
+            return result;
+        }
         public void UpdateBatDau(ChiTietCaThi chiTietCaThi)
         {
             int ma_chi_tiet_ca_thi = chiTietCaThi.MaChiTietCaThi;

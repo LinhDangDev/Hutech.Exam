@@ -1,5 +1,7 @@
 ﻿@page "/result"
 @attribute [Authorize]
+@using Blazor.Extensions.Canvas
+@using Blazor.Extensions.Canvas.Canvas2D
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,7 +21,7 @@
     <!-- styles -->
     <link href="./css/Result/style.css" rel="stylesheet"/>
     <title>Result</title>
-
+    
 </head>
 
 <body>
@@ -54,7 +56,7 @@
                 <!-- Các ô hiển thị kết quả -->
                 <div class="result-score">
 
-                    <p class="show-result" readonly>@diem</p>
+                    <p class="show-result" readonly><BECanvas Width="55" Height="40" @ref="_canvasReference" ></BECanvas></p>
 
                 </div>
 
@@ -96,13 +98,17 @@
                     int index = 1;
                     foreach(var item in ketQuaDapAn)
                     {
-                        if (item)//true
+                        if (item == true)//true
                         {
                             <div class="grid-item grid-green">@index</div>
                         }
-                        else
+                        else if(item == false)
                         {
                             <div class="grid-item grid-red">@index</div>
+                        }
+                        else
+                        {
+                            <div class="grid-item grid-gray">@index</div>
                         }
                         index++;
                     }
@@ -117,6 +123,7 @@
             history.pushState(null, document.title, location.href);
         });
     </script>
+
 </body>
 </html>
 

@@ -17,14 +17,16 @@ namespace Hutech.Exam.Server.Controllers;
     private readonly ChiTietDeThiHoanViService _chiTietDeThiHoanViService;
     private readonly CauTraLoiService _cauTraLoiService;
     private readonly ChiTietCaThiService _chiTietCaThiService;
+    private readonly ChiTietBaiThiService _chiTietBaiThiService;
     public ResultController(SinhVienService sinhVienService, ChiTietDeThiHoanViService chiTietDeThiHoanViService, CaThiService caThiService,
-        CauTraLoiService cauTraLoiService, ChiTietCaThiService chiTietCaThiService)
+        CauTraLoiService cauTraLoiService, ChiTietCaThiService chiTietCaThiService, ChiTietBaiThiService chiTietBaiThiService)
     {
         _sinhVienService = sinhVienService;
         _caThiService = caThiService;
         _chiTietDeThiHoanViService = chiTietDeThiHoanViService;
         _cauTraLoiService = cauTraLoiService;
         _chiTietCaThiService = chiTietCaThiService;
+        _chiTietBaiThiService = chiTietBaiThiService;
     }
     [HttpGet("GetThongTinSinhVien")]
     public ActionResult<SinhVien> GetThongTinSinhVien([FromQuery] long ma_sinh_vien)
@@ -42,31 +44,17 @@ namespace Hutech.Exam.Server.Controllers;
     {
         return _chiTietCaThiService.SelectBy_MaCaThi_MaSinhVien(ma_ca_thi, ma_sinh_vien);
     }
-    [HttpGet("GetListDapAn")]
-    [Cache(120)]
-    public ActionResult<List<int>> GetListDapAn([FromQuery] long ma_de_thi_hoan_vi)
+    [HttpGet("GetListDungSai")]
+    public ActionResult<int> GetListDungSai([FromQuery] int ma_chi_tiet_ca_thi, int tong_so_cau)
     {
-        List<TblChiTietDeThiHoanVi> chiTietDeThiHoanVis = _chiTietDeThiHoanViService.SelectBy_MaDeHV(ma_de_thi_hoan_vi);
-        List<int> listDapAn = new List<int>();
-        foreach(var item in chiTietDeThiHoanVis)
+        List<bool?> result = new List<bool?>();
+        List<ChiTietBaiThi> chiTietBaiThis = _chiTietBaiThiService.SelectBy_ma_chi_tiet_ca_thi(ma_chi_tiet_ca_thi).OrderBy(p => p.ThuTu).ToList();
+        for(int i = 1; i <= tong_so_cau; i++)
         {
-            if(item.DapAn != null)
-                listDapAn.Add((int)item.DapAn);
+            bool? ketQua = chiTietBaiThis?.FirstOrDefault(p => p.ThuTu == i)?.KetQua;
+            result.Add(ketQua);
         }
-        return Ok(listDapAn);
-    }
-    [HttpPost("GetSoCauDung")]
-    public ActionResult<int> GetSoCauDung([FromQuery] long ma_de_thi_hoan_vi, [FromBody] List<int> listKhoanh)
-    {
-        int tong_so_cau_dung = 0;
-        List<int>? listDapAn = this.GetListDapAn(ma_de_thi_hoan_vi).Value;
-        // Không tìm thấy đáp án đề hoặc thí sinh bỏ giấy trắng
-        if(listDapAn == null || listKhoanh == null)
-            return Ok(0);
-        foreach (var item in listKhoanh)
-            if (listDapAn.Contains(item))
-                tong_so_cau_dung++;
-        return Ok(tong_so_cau_dung);
+        return Ok(result);
     }
     [HttpPost("UpdateKetThuc")]
     public ActionResult UpdateKetThuc([FromBody] ChiTietCaThi chiTietCaThi)

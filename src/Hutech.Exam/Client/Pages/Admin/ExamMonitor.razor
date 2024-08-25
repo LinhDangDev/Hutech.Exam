@@ -52,7 +52,6 @@
                                 <th>Họ và tên</th>
                                 <th>Trạng thái</th>
                                 <th>Đăng nhập</th>
-                                <th>Lần cuối</th>
                                 <th>Giờ cộng thêm phút</th>
                                 <th>Điểm</th>
                                 <th>Chức năng</th>
@@ -81,27 +80,18 @@
                                         {
                                             <td style="color: red">Chưa thi</td>
                                         }
-                                        @if(sinhVien != null && sinhVien.IsLoggedIn == true)
+                                        @if(sinhVien != null && item.MaSinhVienNavigation != null && sinhVien.IsLoggedIn == true)
                                         {
                                             <td style="color: blue">
                                                 <div class="function">
                                                     Đã đăng nhập
-                                                    @* <button @onclick="() => onClickResetLogin(sinhVien)">Reset</button> *@
-                                                    <button onclick="resetLogin(@sinhVien.MaSinhVien, '@sinhVien.LastLoggedIn')">Reset</button>
+                                                    <button @onclick="() => onClickResetLogin(item.MaSinhVienNavigation)">Reset</button>
                                                 </div>
                                             </td>
                                         }
                                         else
                                         {
                                             <td>Chưa đăng nhập</td>
-                                        }
-                                        @if(sinhVien != null && sinhVien.LastLoggedIn != null)
-                                        {
-                                            <td>@sinhVien.LastLoggedIn.Value.ToString("dd/MM hh:mm")</td>
-                                        }
-                                        else
-                                        {
-                                            <td>00/00 00:00</td>
                                         }
                                         @if(item.GioCongThem == 0 || item.GioCongThem == -1)
                                         {
@@ -111,7 +101,14 @@
                                         {
                                             <td>@item.GioCongThem (@item.LyDoCong)</td>
                                         }
-                                        <td>@item.Diem</td>
+                                        @if(item.Diem == -1)
+                                        {
+                                            <td><big>&infin;</big></td>
+                                        }
+                                        else
+                                        {
+                                            <td>@item.Diem</td>
+                                        }
                                         <td>
                                             <button class="btnPlus" @onclick="() => onClickCongGioThem(item)">+</button>
                                         </td>
@@ -128,13 +125,12 @@
     </div>
     @if (isShowMessageBox && displayChiTietCaThi != null && MB_thoi_gian_cong != null && MB_ly_do_cong != null && myData != null)
     {
-        string ho_ten = displayChiTietCaThi?.MaSinhVienNavigation?.HoVaTenLot + displayChiTietCaThi?.MaSinhVienNavigation?.TenSinhVien;
+        string ho_ten = displayChiTietCaThi?.MaSinhVienNavigation?.HoVaTenLot + " " + displayChiTietCaThi?.MaSinhVienNavigation?.TenSinhVien;
         <Hutech.Exam.Client.Pages.Admin.MessageBox.MBCongGio
             tenSinhVien="@ho_ten" tenCaThi="@myData.caThi?.TenCaThi" tenMonThi="@myData.caThi?.MaChiTietDotThiNavigation.MaLopAoNavigation.MaMonHocNavigation?.TenMonHoc"
             ngayThi="@myData.caThi?.ThoiGianBatDau" thoiLuongThi="@myData.caThi?.ThoiGianThi" @ref="@MBCongGio"
             onClickLuu="onClickMBLuu" onClickThoat="onClickMBThoat" MSSV="@displayChiTietCaThi?.MaSinhVienNavigation?.MaSoSinhVien">
         </Hutech.Exam.Client.Pages.Admin.MessageBox.MBCongGio>
     }
-    <script src="./js/monitor.js" type="text/javascript"></script>
 </body>
 </html>

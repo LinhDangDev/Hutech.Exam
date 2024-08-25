@@ -10,11 +10,13 @@ using System.Text.Json;
 using Microsoft.JSInterop;
 using System.Text;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Hutech.Exam.Client.Pages
 {
     public partial class Info
     {
+        private static int THOI_GIAN_TREN_DUOI_THI = 1000000; // 15 phút
         [Inject]
         HttpClient? httpClient { get; set; }
         [Inject]
@@ -30,10 +32,12 @@ namespace Hutech.Exam.Client.Pages
         private SinhVien? sinhVien { get; set; }
         private CaThi? caThi { get; set; }
         private MonHoc? monHoc { get; set; }
-        private ChiTietCaThi? chiTietCaThi { get; set; }
+        private List<ChiTietCaThi>? chiTietCaThis { get; set; }
         string selectoption_cathi = "";
         private System.Timers.Timer? timer { get; set; }
         private string? displayTime { get; set; }
+        private ChiTietCaThi? selectedCTCaThi { get; set; }
+        private HubConnection? hubConnection { get; set; }
         protected override async Task OnInitializedAsync()
         {
             //xác thực người dùng
@@ -62,21 +66,18 @@ namespace Hutech.Exam.Client.Pages
             if (response != null && response.IsSuccessStatusCode)
             {
                 var resultString = await response.Content.ReadAsStringAsync();
-                chiTietCaThi = JsonSerializer.Deserialize<ChiTietCaThi>(resultString, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
-                sinhVien = chiTietCaThi?.MaSinhVienNavigation;
+                chiTietCaThis = JsonSerializer.Deserialize<List<ChiTietCaThi>>(resultString, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
+                if(chiTietCaThis != null && myData != null)
+                    sinhVien = myData.sinhVien = chiTietCaThis[0]?.MaSinhVienNavigation;
             }
-            else
+        }
+        private void onClickCaThi(ChiTietCaThi chiTietCaThi)
+        {
+            if(myData != null)
             {
-                if(js != null)
-                    await js.InvokeVoidAsync("alert", "Hiện tại thí sinh chưa có ca thi nào. Vui lòng liên hệ quản trị viên");
+                myData.chiTietCaThi = selectedCTCaThi = chiTietCaThi;
             }
-            if(chiTietCaThi != null && myData != null && chiTietCaThi.MaCaThiNavigation != null)
-            {
-                myData.chiTietCaThi = chiTietCaThi;
-                myData.sinhVien = sinhVien;
-                caThi = chiTietCaThi.MaCaThiNavigation;
-                monHoc = chiTietCaThi.MaCaThiNavigation.MaChiTietDotThiNavigation.MaLopAoNavigation.MaMonHocNavigation;
-            }
+
         }
         private async Task onClickDangXuat()
         {
@@ -84,6 +85,9 @@ namespace Hutech.Exam.Client.Pages
             if (result && authenticationStateProvider != null)
             {
                 await UpdateLogout();
+                // Cập nhật cho quản trị viên biết sinh viên đã đăng xuất
+                if (isConnectHub() && sinhVien != null)
+                    await sendMessage(sinhVien.MaSinhVien);
                 var customAuthStateProvider = (CustomAuthenticationStateProvider)authenticationStateProvider;
                 await customAuthStateProvider.UpdateAuthenticationState(null);
                 navManager?.NavigateTo("/", true);
@@ -101,35 +105,38 @@ namespace Hutech.Exam.Client.Pages
                 await js.InvokeVoidAsync("alert", "Vui lòng chọn ca thi!");
                 return;
             }
-            // nếu sinh viên đã thi rồi thì sẽ không được thi lại
-            //if (chiTietCaThi != null && chiTietCaThi.DaHoanThanh && js != null)
-            //{
-            //    await js.InvokeVoidAsync("alert", "Bạn đã thi môn này. Vui lòng chọn môn thi khác");
-            //    return;
-            //}
             if (caThi != null && (caThi.IsActivated == false || caThi.KetThuc == true) && js!= null)
             {
-                await js.InvokeVoidAsync("alert", "Ca thi này hiện chưa được kích hoạt hoặc đã kết thúc. Vui lòng liên hệ quản trị để kích hoạt ca thi");
+                await js.InvokeVoidAsync("alert", "Ca thi này hiện chưa được kích hoạt hoặc dừng tạm thời. Vui lòng liên hệ quản trị để kích hoạt ca thi");
+                return;
+            }
+            DateTime currentTime = DateTime.Now;
+            if (caThi != null && js != null && (caThi.ThoiGianBatDau.AddMinutes(THOI_GIAN_TREN_DUOI_THI) <= currentTime || caThi.ThoiGianBatDau.AddMinutes(-THOI_GIAN_TREN_DUOI_THI) >= currentTime))
+            {
+                await js.InvokeVoidAsync("alert", "Ca thi này hiện chưa đến thời gian làm bài hoặc đã quá giờ làm. Vui lòng thí sinh chờ đợi đến giờ thi");
                 return;
             }
             await HandleUpdateBatDau();
-            if(js != null)
+            if (js != null)
                 await js.InvokeVoidAsync("alert", "Bắt đầu thi.Chúc bạn sớm hoàn thành kết quả tốt nhất");
                 navManager?.NavigateTo("/exam");
         }
         private async Task HandleUpdateBatDau()
         {
-            if(chiTietCaThi != null)
-                chiTietCaThi.ThoiGianBatDau = DateTime.Now;
-            var jsonString = JsonSerializer.Serialize(chiTietCaThi);
+            if(selectedCTCaThi != null)
+                selectedCTCaThi.ThoiGianBatDau = DateTime.Now;
+            var jsonString = JsonSerializer.Serialize(selectedCTCaThi);
             if(httpClient != null)
                 await httpClient.PostAsync("api/Info/UpdateBatDauThi", new StringContent(jsonString, Encoding.UTF8, "application/json"));
         }
         private async Task Start()
         {
+            await initialHubConnection();
             sinhVien = new SinhVien();
             caThi = new CaThi();
             displayTime = DateTime.Now.ToString("hh:mm:ss tt");
+            chiTietCaThis = new List<ChiTietCaThi>();
+            selectedCTCaThi = new ChiTietCaThi();
             var authState = (authenticationState!= null) ? await authenticationState : null;
             // lấy thông tin mã sinh viên từ claim
             long ma_sinh_vien = -1;
@@ -157,14 +164,63 @@ namespace Hutech.Exam.Client.Pages
         {
             if(timer != null)
                 timer.Dispose();
+            hubConnection?.DisposeAsync();
         }
         private bool CheckRadioButton()
         {
             return !string.IsNullOrEmpty(selectoption_cathi);
         }
-        void RadioChanged(ChangeEventArgs e)
+        private void RadioChanged(ChangeEventArgs e)
         {
             selectoption_cathi = "true";
+        }
+        private async Task initialHubConnection()
+        {
+            if (navManager != null)
+            {
+                hubConnection = new HubConnectionBuilder()
+                    .WithUrl(navManager.ToAbsoluteUri("/ChiTietCaThiHub"))
+                    .Build();
+                hubConnection.On("ReceiveMessage", () =>
+                {
+                    callLoadData();
+                    StateHasChanged();
+                });
+                hubConnection.On<long>("ReceiveMessageResetLogin", (ma_so_sv) =>
+                {
+                    if (sinhVien != null && ma_so_sv == sinhVien.MaSinhVien)
+                        resetLogin();
+                });
+                await hubConnection.StartAsync();
+            }
+        }
+        private void callLoadData()
+        {
+            Task.Run(async () =>
+            {
+                if(sinhVien != null)
+                    await getThongTinChiTietCaThi(sinhVien.MaSinhVien);
+                StateHasChanged();
+            });
+        }
+        private void resetLogin()
+        {
+            Task.Run(async () =>
+            {
+                if(authenticationStateProvider != null)
+                {
+                    var customAuthStateProvider = (CustomAuthenticationStateProvider)authenticationStateProvider;
+                    await customAuthStateProvider.UpdateAuthenticationState(null);
+                    navManager?.NavigateTo("/", true);
+                }
+            });
+        }
+        private bool isConnectHub() => hubConnection?.State == HubConnectionState.Connected;
+
+        private async Task sendMessage(long ma_sinh_vien)
+        {
+            if (hubConnection != null)
+                await hubConnection.SendAsync("SendMessageMSV", ma_sinh_vien);
         }
     }
 }

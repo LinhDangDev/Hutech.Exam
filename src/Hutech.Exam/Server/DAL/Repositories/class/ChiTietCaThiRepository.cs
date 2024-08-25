@@ -31,6 +31,13 @@ namespace Hutech.Exam.Server.DAL.Repositories
             sql.SqlParams("@ma_sinh_vien", SqlDbType.BigInt, ma_sinh_vien);
             return sql.ExcuteReader();
         }
+        public IDataReader SelectBy_MaSinhVienThi(long ma_sinh_vien, DateTime ngay_hien_tai)
+        {
+            DatabaseReader sql = new DatabaseReader("chi_tiet_ca_thi_SelectBy_MaSinhVienThi");
+            sql.SqlParams("@ma_sinh_vien", SqlDbType.BigInt, ma_sinh_vien);
+            sql.SqlParams("@ngay_hien_tai", SqlDbType.DateTime, ngay_hien_tai);
+            return sql.ExcuteReader();
+        }
         public bool UpdateBatDau(int ma_chi_tiet_ca_thi, DateTime? thoi_gian_bat_dau)
         {
             DatabaseReader sql = new DatabaseReader("chi_tiet_ca_thi_UpdateBatDau");

@@ -25,9 +25,9 @@ namespace Hutech.Exam.Server.Controllers.Admin
         private readonly ChiTietCaThiService _chiTietCaThiService;
         private readonly SinhVienService _sinhVienService;
         private readonly ChiTietBaiThiService _chiTietBaiThiService;
-        private readonly IHubContext<CaThiHub> _hubContext;
+        //private readonly IHubContext<CaThiHub> _hubContext;
         public AdminController(UserService userService, CaThiService caThiService, ChiTietDotThiService chiTietDotThiService, DotThiService dotThiService,
-            LopAoService lopAoService, MonHocService monHocService, ChiTietCaThiService chiTietCaThiService, SinhVienService sinhVienService, IHubContext<CaThiHub> hubContext, ChiTietBaiThiService chiTietBaiThiService)
+            LopAoService lopAoService, MonHocService monHocService, ChiTietCaThiService chiTietCaThiService, SinhVienService sinhVienService,/* IHubContext<CaThiHub> hubContext*/ ChiTietBaiThiService chiTietBaiThiService)
         {
             _userService = userService;
             _caThiService = caThiService;
@@ -37,7 +37,7 @@ namespace Hutech.Exam.Server.Controllers.Admin
             _monHocService = monHocService;
             _chiTietCaThiService = chiTietCaThiService;
             _sinhVienService = sinhVienService;
-            _hubContext = hubContext;
+            //_hubContext = hubContext;
             _chiTietBaiThiService = chiTietBaiThiService;
         }
         //API Manager & Control

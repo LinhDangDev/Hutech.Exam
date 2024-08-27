@@ -72,16 +72,23 @@ public partial class Result
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _context = await _canvasReference.CreateCanvas2DAsync();
-        await _context.SetFontAsync("35px Arial");
-        await _context.FillTextAsync(diem.ToString(), 5, 35);
-
+        if (diem != 0)
+        {
+            _context = await _canvasReference.CreateCanvas2DAsync();
+            await _context.SetFontAsync("35px Arial");
+            if (diem - (int)diem != 0)
+            {
+                await _context.FillTextAsync(diem.ToString(), 5, 35);
+            }
+            string text = diem + ".0";
+            await _context.FillTextAsync(text.ToString(), 5, 35);
+        }
         await base.OnAfterRenderAsync(firstRender);
     }
 
     private async Task HandleUpdateKetThuc()
     {
-        if(chiTietCaThi != null && httpClient != null && myData != null && customDeThis != null)
+        if (chiTietCaThi != null && httpClient != null && myData != null && customDeThis != null)
         {
             chiTietCaThi.ThoiGianKetThuc = DateTime.Now;
             chiTietCaThi.Diem = diem;
@@ -95,11 +102,11 @@ public partial class Result
     {
         diem = so_cau_dung = 0;
         double diem_tung_cau = 0;
-        if(customDeThis != null)
+        if (customDeThis != null)
             diem_tung_cau = (10.0 / customDeThis.Count);
-        if(ketQuaDapAn != null)
+        if (ketQuaDapAn != null)
         {
-            foreach(var item in ketQuaDapAn)
+            foreach (var item in ketQuaDapAn)
             {
                 if (item == true)
                 {
@@ -119,7 +126,7 @@ public partial class Result
             return Math.Floor(diem) + 0.5;
         if (so_phay > 0.5 && so_phay <= 0.75)
             return Math.Floor(diem) + 0.8;
-        if(so_phay > 0.75)
+        if (so_phay > 0.75)
             return Math.Ceiling(diem);
         return Math.Floor(diem);
     }
@@ -131,15 +138,15 @@ public partial class Result
             await UpdateLogout();
             if (isConnectHub() && sinhVien != null)
                 await sendMessage(sinhVien.MaSinhVien);
-            var customAuthStateProvider = (authenticationStateProvider!=null) ? (CustomAuthenticationStateProvider)authenticationStateProvider : null;
-            if(customAuthStateProvider != null)
+            var customAuthStateProvider = (authenticationStateProvider != null) ? (CustomAuthenticationStateProvider)authenticationStateProvider : null;
+            if (customAuthStateProvider != null)
                 await customAuthStateProvider.UpdateAuthenticationState(null);
             navManager?.NavigateTo("/", true);
         }
     }
     private async Task UpdateLogout()
     {
-        if(httpClient != null && sinhVien != null)
+        if (httpClient != null && sinhVien != null)
             await httpClient.GetAsync($"api/User/UpdateLogout?ma_sinh_vien={sinhVien.MaSinhVien}");
     }
     private void khoiTaoBanDau()
@@ -147,7 +154,7 @@ public partial class Result
         sinhVien = new SinhVien();
         caThi = new CaThi();
         chiTietCaThi = new ChiTietCaThi();
-        if(myData != null)
+        if (myData != null)
         {
             listDapAn = myData.listDapAnGoc;
             customDeThis = myData.customDeThis;
@@ -162,7 +169,7 @@ public partial class Result
         if (response != null && response.IsSuccessStatusCode && myData != null)
         {
             var resultString = await response.Content.ReadAsStringAsync();
-            ketQuaDapAn =  JsonSerializer.Deserialize<List<bool?>>(resultString, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
+            ketQuaDapAn = JsonSerializer.Deserialize<List<bool?>>(resultString, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
         }
     }
 
